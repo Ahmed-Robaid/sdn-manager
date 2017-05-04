@@ -73,6 +73,7 @@ class ManagerAgent(messages_pb2_grpc.ManagerAgentServicer):
 
     def list_resources(self, payload=None):
         resources = [messages_pb2.ResourceMetadata("name", "descriprion", 1)]
+        resources.append( messages_pb2.ResourceMetadata("name", "descriprion", 1))
         return messages_pb2.ListResourceResponse(resources=resources)
 
     def provide_resources(self, payload=None):
