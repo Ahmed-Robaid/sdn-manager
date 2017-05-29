@@ -14,19 +14,18 @@ def read(fname):
 
 
 setup(
-    name="xxx-manager",
+    name="sdn-manager",
     version="0.0.1",
     author="SoftFIRE",
     author_email="softfire@softfire.eu",
-    description="The SoftFIRE XXX Manager",
+    description="The SoftFIRE SDN Manager",
     license="Apache 2",
     keywords="python vnfm nfvo open baton openbaton sdk experiment manager softfire tosca openstack rest",
     url="http://softfire.eu/",
     packages=find_packages(),
     scripts=["manager"],
     install_requires=[
-        'asyncio',
-        'grpcio',
+        'softfire-sdk',
     ],
     long_description=read('README.rst'),
     classifiers=[
