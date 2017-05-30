@@ -10,7 +10,7 @@ def read(fname):
         readme_file = open(readme_file_path)
         return readme_file.read()
     else:
-        return "The SoftFIRE XXX Manager"
+        return "The SoftFIRE SDN Manager"
 
 
 setup(
@@ -23,7 +23,7 @@ setup(
     keywords="python vnfm nfvo open baton openbaton sdk experiment manager softfire tosca openstack rest",
     url="http://softfire.eu/",
     packages=find_packages(),
-    scripts=["manager"],
+    scripts=["sdn-manager"],
     install_requires=[
         'softfire-sdk',
     ],
