@@ -26,6 +26,7 @@ setup(
     scripts=["sdn-manager"],
     install_requires=[
         'softfire-sdk',
+        'PyYAML'
     ],
     long_description=read('README.rst'),
     classifiers=[
