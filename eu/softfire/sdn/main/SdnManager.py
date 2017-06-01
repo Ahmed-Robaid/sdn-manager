@@ -1,9 +1,8 @@
 import json
-from _md5 import md5
-from datetime import datetime
-
 import requests
 import yaml
+from _md5 import md5
+from datetime import datetime
 from sdk.softfire.grpc import messages_pb2
 from sdk.softfire.grpc.messages_pb2 import UserInfo
 from sdk.softfire.main import start_manager
@@ -11,8 +10,8 @@ from sdk.softfire.manager import AbstractManager
 from sdk.softfire.utils import TESTBED_MAPPING
 from urllib3.util import url
 
-from utils.static_config import CONFIG_FILE_PATH
-from utils.utils import get_logger, get_available_resources
+from eu.softfire.sdn.utils.static_config import CONFIG_FILE_PATH
+from eu.softfire.sdn.utils.utils import get_logger, get_available_resources
 
 logger = get_logger(__name__)
 

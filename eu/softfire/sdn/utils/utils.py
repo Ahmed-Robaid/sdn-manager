@@ -4,11 +4,11 @@ import logging
 import logging.config
 import os
 
-from utils.static_config import CONFIG_FILE_PATH
+from eu.softfire.sdn.utils.static_config import CONFIG_FILE_PATH
 
 
 def get_logger(name):
-    #print("Config File: %s"%CONFIG_FILE_PATH)
+    # print("Config File: %s"%CONFIG_FILE_PATH)
     logging.config.fileConfig(CONFIG_FILE_PATH)
     return logging.getLogger("eu.softfire.sdn.manager.%s" % name)
 

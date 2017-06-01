@@ -6,6 +6,6 @@ It will then work when installed in site-packages on a target system
 where the runner script is in /usr/bin (or wherever)
 """
 
-import main.SdnManager as manager
+from eu.softfire.sdn.main.SdnManager import start
 
-manager.start()
+start()
