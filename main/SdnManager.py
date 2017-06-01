@@ -1,4 +1,6 @@
 import json
+from _md5 import md5
+from datetime import datetime
 
 import requests
 import yaml
@@ -7,6 +9,7 @@ from sdk.softfire.grpc.messages_pb2 import UserInfo
 from sdk.softfire.main import start_manager
 from sdk.softfire.manager import AbstractManager
 from sdk.softfire.utils import TESTBED_MAPPING
+from urllib3.util import url
 
 from utils.static_config import CONFIG_FILE_PATH
 from utils.utils import get_logger, get_available_resources
@@ -51,10 +54,30 @@ class SdnManager(AbstractManager):
         """
         extract token from payload and delete token at the proxy
         :param user_info:
-        :param payload:
+        :param payload: JSON object { "resource_id", "flow-table-range", "token", "URI", }
         :return:
         """
-        super().release_resources(user_info, payload)
+        try:
+            pj = json.loads(payload)
+        except ValueError as e:
+            logger.error("error parsing json resources: %s" % e)
+        res_id = pj.get("resource_id")
+        token = pj.get("token")
+
+        resource_data = None
+        testbed = None
+        for k, v in self._resourcedata.items():
+            if v.get('resource_id') == res_id:
+                resource_data = v
+                testbed = k
+
+        if testbed is None or res_id is None:
+            raise KeyError("Invalid resources!")
+
+        targeturl = url.parse_url(resource_data.get("url")).url.join("SDNproxy", token)
+        logger.info("Deleting sdn-proxy: %s" % targeturl)
+        r = requests.delete(targeturl)
+        logger.debug("Result: %s" % r)
 
     def list_resources(self, user_info=None, payload=None) -> list:
         logger.info("Received List Resources")
@@ -93,7 +116,7 @@ class SdnManager(AbstractManager):
         """
         res_dict = yaml.load(payload)
         resource_id = res_dict.get("properties").get("resources_id")
-
+        logger.debug("Validate resource: %s" % resource_id)
         if resource_id not in [v.get('resource_id') for k, v in self._resourcedata.items()]:
             raise KeyError("Unknown resource_id")
 
@@ -107,24 +130,33 @@ class SdnManager(AbstractManager):
         result = list()
         res_dict = yaml.load(payload)
         resource_id = res_dict.get("properties").get("resources_id")
-        resource_data = None
 
+        logger.debug("Provide: res_dict: %s" % res_dict)
+
+        resource_data = None
+        testbed = None
         for k, v in self._resourcedata.items():
             if v.get('resource_id') == resource_id:
                 resource_data = v
                 testbed = k
 
-        token = 1234  # TODO: generate and send to proxy
+        if testbed is None or resource_id is None:
+            raise KeyError("Invalid resources!")
+
+        user_name = user_info.name
+        token = md5("%s%s%s" % (resource_id, datetime.utcnow(), user_name))  # TODO: generate and send to proxy
         tenant_id = user_info.testbed_tenants[TESTBED_MAPPING.get(testbed)]
         data = dict(experiment_id=token, tenant_id=tenant_id)
 
-        r = requests.post(resource_data.get("url") + "SDNproxySetup", json=data,
-                          headers=["Auth-Secret: " + res["secret"]])
+        targeturl = url.parse_url(resource_data.get("url")).url.join("SDNproxySetup")
+        logger.debug("Target SDN-Proxy URL: %s" % targeturl)
+        r = requests.post(targeturl, json=data, headers=["Auth-Secret: " + resource_data.get("secret")])
+        logger.debug("Result: %s" % r)
         if r.headers.get('Content-Type') and r.headers['Content-Type'] == "application/json":
             try:
                 resj = r.json()
                 logger.debug("Result from SDN-Proxy: %s" % resj)
-                user_flow_tables = resj.get("user-flow-tables")
+                user_flow_tables = resj.get("user-flow-tables", None)
                 api_url = resj.get("endpoint_url")
             except ValueError as e:
                 logger.error("Error reading response json: %s" % e)
@@ -144,9 +176,18 @@ class SdnManager(AbstractManager):
     def create_user(self, user_info: UserInfo) -> UserInfo:
         logger.debug("create_user: UserInfo: %s" % user_info)
         tenant_id = user_info.testbed_tenants.get(messages_pb2.FOKUS)  # FIXME hardocded for FOKUS
-        self.prepare_tenant(tenant_id, "fokus")
+        if tenant_id is not None:
+            self.prepare_tenant(tenant_id, "fokus")
+        else:
+            logger.error("Tenant_id missing!")
+        return user_info
 
     def refresh_resources(self, user_info) -> list:
+        """
+        used for refreshing the image list for nvf-maanger(s)
+        :param user_info:
+        :return:
+        """
         return super().refresh_resources(user_info)
 
 
