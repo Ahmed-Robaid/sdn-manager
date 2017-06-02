@@ -1,6 +1,6 @@
+import hashlib
 import json
 import urllib
-from _md5 import md5
 from datetime import datetime
 
 import requests
@@ -10,12 +10,19 @@ from sdk.softfire.grpc.messages_pb2 import UserInfo
 from sdk.softfire.main import start_manager
 from sdk.softfire.manager import AbstractManager
 from sdk.softfire.utils import TESTBED_MAPPING
-from urllib3.util import url
 
 from eu.softfire.sdn.utils.static_config import CONFIG_FILE_PATH
 from eu.softfire.sdn.utils.utils import get_logger, get_available_resources
 
 logger = get_logger(__name__)
+
+testbed2str = {
+    messages_pb2.FOKUS: "fokus",
+    messages_pb2.ERICSSON: "ericsson",
+    messages_pb2.SURREY: "surrey",
+    messages_pb2.ADS: "ads",
+    messages_pb2.DT: "dt",
+}
 
 
 class SdnManager(AbstractManager):
@@ -123,9 +130,9 @@ class SdnManager(AbstractManager):
         :param payload:
         :return:
         """
-        logger.debug("Validating resource: %s" % payload)
+        logger.debug("validate_resources payload: %s" % payload)
         res_dict = yaml.load(payload)
-        logger.debug("Resource dict: %s" % res_dict)
+        logger.debug("validate_resources dict: %s" % res_dict)
         resource_id = res_dict.get("properties").get("resource_id")
         logger.debug("Validate resource: %s" % resource_id)
         if resource_id not in [v.get('resource_id') for k, v in self._resourcedata.items()]:
@@ -139,13 +146,11 @@ class SdnManager(AbstractManager):
         :return:
         """
         result = list()
-        logger.debug("Deploying payload %s" % payload)
         res_dict = yaml.load(payload)
-        logger.debug("Deploying dict %s" % res_dict)
+        logger.debug("provide_resources dict %s" % res_dict)
         resource_id = res_dict.get("properties").get("resource_id")
-
-        logger.debug("Provide: res_dict: %s" % res_dict)
-
+        logger.debug("provide_resources: res_dict: %s" % res_dict)
+        logger.info("provide_resources username:%s resource:%s " % (user_info.get("name", None), res_dict))
         resource_data = None
         testbed = None
         for k, v in self._resourcedata.items():
@@ -157,9 +162,8 @@ class SdnManager(AbstractManager):
             raise KeyError("Invalid resources!")
 
         user_name = user_info.name
-        # token_string = "%s%s%s" % (resource_id, datetime.utcnow(), user_name)
-        token = "%s%s%s" % (resource_id, datetime.utcnow(), user_name)
-        # token = md5(token_string.encode())  # TODO: generate and send to proxy
+        token_string = "%s%s%s" % (resource_id, datetime.utcnow(), user_name)
+        token = hashlib.md5(token_string.encode()).hexdigest()
         tenant_id = user_info.testbed_tenants[TESTBED_MAPPING.get(testbed)]
         data = dict(experiment_id=token, tenant_id=tenant_id)
 
@@ -190,11 +194,13 @@ class SdnManager(AbstractManager):
 
     def create_user(self, user_info: UserInfo) -> UserInfo:
         logger.debug("create_user: UserInfo: %s" % user_info)
-        tenant_id = user_info.testbed_tenants.get(messages_pb2.FOKUS)  # FIXME hardocded for FOKUS
-        if tenant_id is not None:
-            self.prepare_tenant(tenant_id, "fokus")
-        else:
-            logger.error("Tenant_id missing!")
+        logger.debug(user_info.testbed_tenants)
+        for testbed_id, tenent_id in user_info.testbed_tenants.items():
+            if tenent_id and testbed_id in testbed2str.keys():
+                if testbed_id == messages_pb2.FOKUS:
+                    self.prepare_tenant(tenent_id, testbed2str.get(testbed_id))
+            else:
+                logger.error("Tenant_id missing for testbed %s!" % testbed2str.get(testbed_id))
         return user_info
 
     def refresh_resources(self, user_info) -> list:
@@ -208,30 +214,29 @@ class SdnManager(AbstractManager):
 
 def start():
     print("""
-    
-                        ███████╗ ██████╗ ███████╗████████╗███████╗██╗██████╗ ███████╗                 
-                        ██╔════╝██╔═══██╗██╔════╝╚══██╔══╝██╔════╝██║██╔══██╗██╔════╝                 
-                        ███████╗██║   ██║█████╗     ██║   █████╗  ██║██████╔╝█████╗                   
-                        ╚════██║██║   ██║██╔══╝     ██║   ██╔══╝  ██║██╔══██╗██╔══╝                   
-                        ███████║╚██████╔╝██║        ██║   ██║     ██║██║  ██║███████╗                 
-                        ╚══════╝ ╚═════╝ ╚═╝        ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝                 
-                                                                                                      
-                                                                                                      
-                                                                                                      
-█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗
-╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝
-                                                                                                      
-                                                                                                      
-                                                                                                      
-    ███████╗██████╗ ███╗   ██╗    ███╗   ███╗ █████╗ ███╗   ██╗ █████╗  ██████╗ ███████╗██████╗       
-    ██╔════╝██╔══██╗████╗  ██║    ████╗ ████║██╔══██╗████╗  ██║██╔══██╗██╔════╝ ██╔════╝██╔══██╗      
-    ███████╗██║  ██║██╔██╗ ██║    ██╔████╔██║███████║██╔██╗ ██║███████║██║  ███╗█████╗  ██████╔╝      
-    ╚════██║██║  ██║██║╚██╗██║    ██║╚██╔╝██║██╔══██║██║╚██╗██║██╔══██║██║   ██║██╔══╝  ██╔══██╗      
-    ███████║██████╔╝██║ ╚████║    ██║ ╚═╝ ██║██║  ██║██║ ╚████║██║  ██║╚██████╔╝███████╗██║  ██║      
-    ╚══════╝╚═════╝ ╚═╝  ╚═══╝    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝      
-                                                                                                      
-    
-    """)
+
+                            ███████╗ ██████╗ ███████╗████████╗███████╗██╗██████╗ ███████╗
+                            ██╔════╝██╔═══██╗██╔════╝╚══██╔══╝██╔════╝██║██╔══██╗██╔════╝
+                            ███████╗██║   ██║█████╗     ██║   █████╗  ██║██████╔╝█████╗
+                            ╚════██║██║   ██║██╔══╝     ██║   ██╔══╝  ██║██╔══██╗██╔══╝
+                            ███████║╚██████╔╝██║        ██║   ██║     ██║██║  ██║███████╗
+                            ╚══════╝ ╚═════╝ ╚═╝        ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝
+
+
+
+    █████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗
+    ╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝
+
+
+
+        ███████╗██████╗ ███╗   ██╗    ███╗   ███╗ █████╗ ███╗   ██╗ █████╗  ██████╗ ███████╗██████╗
+        ██╔════╝██╔══██╗████╗  ██║    ████╗ ████║██╔══██╗████╗  ██║██╔══██╗██╔════╝ ██╔════╝██╔══██╗
+        ███████╗██║  ██║██╔██╗ ██║    ██╔████╔██║███████║██╔██╗ ██║███████║██║  ███╗█████╗  ██████╔╝
+        ╚════██║██║  ██║██║╚██╗██║    ██║╚██╔╝██║██╔══██║██║╚██╗██║██╔══██║██║   ██║██╔══╝  ██╔══██╗
+        ███████║██████╔╝██║ ╚████║    ██║ ╚═╝ ██║██║  ██║██║ ╚████║██║  ██║╚██████╔╝███████╗██║  ██║
+        ╚══════╝╚═════╝ ╚═╝  ╚═══╝    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
+
+""")
     try:
         start_manager(SdnManager(CONFIG_FILE_PATH))
     except:
