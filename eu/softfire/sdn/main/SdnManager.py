@@ -146,7 +146,7 @@ class SdnManager(AbstractManager):
         :return:
         """
         result = list()
-        res_dict = yaml.load(payload)
+        res_dict = json.loads(payload)
         logger.debug("provide_resources dict %s" % res_dict)
         resource_id = res_dict.get("properties").get("resource_id")
         logger.debug("provide_resources: res_dict: %s" % res_dict)
