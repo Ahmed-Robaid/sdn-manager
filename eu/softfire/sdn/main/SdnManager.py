@@ -66,19 +66,16 @@ class SdnManager(AbstractManager):
         :return:
         """
         try:
-            pjs = json.loads(payload)
+            pj = json.loads(payload)
         except ValueError as e:
             logger.error("error parsing json resources: %s" % e)
+            return
 
-        if isinstance(pjs, list):
-            for pj in pjs:
-                self._terminate_resource(pj)
-        else:
-            self._terminate_resource(pjs)
+        self._terminate_resource(pj)
 
     def _terminate_resource(self, pj):
         logger.debug("Terminating resource: %s" % pj)
-        if pj or len(pj):
+        if pj:
             res_id = pj.get("resource_id")
             token = pj.get("token")
             resource_data = None
