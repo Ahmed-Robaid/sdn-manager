@@ -140,7 +140,7 @@ class SdnManager(AbstractManager):
         """
         result = list()
         logger.debug("Deploying payload %s" % payload)
-        res_dict = yaml.load(yaml.load(payload))
+        res_dict = yaml.load(payload)
         logger.debug("Deploying dict %s" % res_dict)
         resource_id = res_dict.get("properties").get("resource_id")
 
