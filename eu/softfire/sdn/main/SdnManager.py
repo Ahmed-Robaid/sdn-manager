@@ -83,7 +83,7 @@ class SdnManager(AbstractManager):
             if testbed is None or res_id is None:
                 logger.warn("Resource not found! probaly never deployed, i will return")
                 return
-            targeturl = url.parse_url(resource_data.get("url")).url.join("SDNproxy", token)
+            targeturl = urllib.parse.urljoin(resource_data.get("url"), "SDNproxySetup/%s" % token)
             logger.info("Deleting sdn-proxy: %s" % targeturl)
             r = requests.delete(targeturl)
             logger.debug("Result: %s" % r)
