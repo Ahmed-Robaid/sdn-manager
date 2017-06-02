@@ -147,7 +147,8 @@ class SdnManager(AbstractManager):
         logger.debug("provide_resources dict %s" % res_dict)
         resource_id = res_dict.get("properties").get("resource_id")
         logger.debug("provide_resources: res_dict: %s" % res_dict)
-        logger.info("provide_resources username:%s resource:%s " % (user_info.get("name", None), res_dict))
+        username = user_info.name
+        logger.info("provide_resources username:%s resource:%s " % (username, res_dict))
         resource_data = None
         testbed = None
         for k, v in self._resourcedata.items():
