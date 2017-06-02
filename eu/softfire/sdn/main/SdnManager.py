@@ -1,8 +1,10 @@
 import json
-import requests
-import yaml
+import urllib
 from _md5 import md5
 from datetime import datetime
+
+import requests
+import yaml
 from sdk.softfire.grpc import messages_pb2
 from sdk.softfire.grpc.messages_pb2 import UserInfo
 from sdk.softfire.main import start_manager
@@ -57,26 +59,34 @@ class SdnManager(AbstractManager):
         :return:
         """
         try:
-            pj = json.loads(payload)
+            pjs = json.loads(payload)
         except ValueError as e:
             logger.error("error parsing json resources: %s" % e)
-        res_id = pj.get("resource_id")
-        token = pj.get("token")
 
-        resource_data = None
-        testbed = None
-        for k, v in self._resourcedata.items():
-            if v.get('resource_id') == res_id:
-                resource_data = v
-                testbed = k
+        if isinstance(pjs, list):
+            for pj in pjs:
+                self._terminate_resource(pj)
+        else:
+            self._terminate_resource(pjs)
 
-        if testbed is None or res_id is None:
-            raise KeyError("Invalid resources!")
-
-        targeturl = url.parse_url(resource_data.get("url")).url.join("SDNproxy", token)
-        logger.info("Deleting sdn-proxy: %s" % targeturl)
-        r = requests.delete(targeturl)
-        logger.debug("Result: %s" % r)
+    def _terminate_resource(self, pj):
+        logger.debug("Terminating resource: %s" % pj)
+        if pj or len(pj):
+            res_id = pj.get("resource_id")
+            token = pj.get("token")
+            resource_data = None
+            testbed = None
+            for k, v in self._resourcedata.items():
+                if v.get('resource_id') == res_id:
+                    resource_data = v
+                    testbed = k
+            if testbed is None or res_id is None:
+                logger.warn("Resource not found! probaly never deployed, i will return")
+                return
+            targeturl = url.parse_url(resource_data.get("url")).url.join("SDNproxy", token)
+            logger.info("Deleting sdn-proxy: %s" % targeturl)
+            r = requests.delete(targeturl)
+            logger.debug("Result: %s" % r)
 
     def list_resources(self, user_info=None, payload=None) -> list:
         logger.info("Received List Resources")
@@ -113,8 +123,10 @@ class SdnManager(AbstractManager):
         :param payload:
         :return:
         """
+        logger.debug("Validating resource: %s" % payload)
         res_dict = yaml.load(payload)
-        resource_id = res_dict.get("properties").get("resources_id")
+        logger.debug("Resource dict: %s" % res_dict)
+        resource_id = res_dict.get("properties").get("resource_id")
         logger.debug("Validate resource: %s" % resource_id)
         if resource_id not in [v.get('resource_id') for k, v in self._resourcedata.items()]:
             raise KeyError("Unknown resource_id")
@@ -127,8 +139,10 @@ class SdnManager(AbstractManager):
         :return:
         """
         result = list()
-        res_dict = yaml.load(payload)
-        resource_id = res_dict.get("properties").get("resources_id")
+        logger.debug("Deploying payload %s" % payload)
+        res_dict = yaml.load(yaml.load(payload))
+        logger.debug("Deploying dict %s" % res_dict)
+        resource_id = res_dict.get("properties").get("resource_id")
 
         logger.debug("Provide: res_dict: %s" % res_dict)
 
@@ -143,13 +157,15 @@ class SdnManager(AbstractManager):
             raise KeyError("Invalid resources!")
 
         user_name = user_info.name
-        token = md5("%s%s%s" % (resource_id, datetime.utcnow(), user_name))  # TODO: generate and send to proxy
+        # token_string = "%s%s%s" % (resource_id, datetime.utcnow(), user_name)
+        token = "%s%s%s" % (resource_id, datetime.utcnow(), user_name)
+        # token = md5(token_string.encode())  # TODO: generate and send to proxy
         tenant_id = user_info.testbed_tenants[TESTBED_MAPPING.get(testbed)]
         data = dict(experiment_id=token, tenant_id=tenant_id)
 
-        targeturl = url.parse_url(resource_data.get("url")).url.join("SDNproxySetup")
+        targeturl = urllib.parse.urljoin(resource_data.get("url"), "SDNproxySetup")
         logger.debug("Target SDN-Proxy URL: %s" % targeturl)
-        r = requests.post(targeturl, json=data, headers=["Auth-Secret: " + resource_data.get("secret")])
+        r = requests.post(targeturl, json=data, headers={"Auth-Secret": resource_data.get("secret")})
         logger.debug("Result: %s" % r)
         if r.headers.get('Content-Type') and r.headers['Content-Type'] == "application/json":
             try:
@@ -191,7 +207,36 @@ class SdnManager(AbstractManager):
 
 
 def start():
-    start_manager(SdnManager(CONFIG_FILE_PATH))
+    print("""
+    
+                        ███████╗ ██████╗ ███████╗████████╗███████╗██╗██████╗ ███████╗                 
+                        ██╔════╝██╔═══██╗██╔════╝╚══██╔══╝██╔════╝██║██╔══██╗██╔════╝                 
+                        ███████╗██║   ██║█████╗     ██║   █████╗  ██║██████╔╝█████╗                   
+                        ╚════██║██║   ██║██╔══╝     ██║   ██╔══╝  ██║██╔══██╗██╔══╝                   
+                        ███████║╚██████╔╝██║        ██║   ██║     ██║██║  ██║███████╗                 
+                        ╚══════╝ ╚═════╝ ╚═╝        ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝                 
+                                                                                                      
+                                                                                                      
+                                                                                                      
+█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗
+╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝
+                                                                                                      
+                                                                                                      
+                                                                                                      
+    ███████╗██████╗ ███╗   ██╗    ███╗   ███╗ █████╗ ███╗   ██╗ █████╗  ██████╗ ███████╗██████╗       
+    ██╔════╝██╔══██╗████╗  ██║    ████╗ ████║██╔══██╗████╗  ██║██╔══██╗██╔════╝ ██╔════╝██╔══██╗      
+    ███████╗██║  ██║██╔██╗ ██║    ██╔████╔██║███████║██╔██╗ ██║███████║██║  ███╗█████╗  ██████╔╝      
+    ╚════██║██║  ██║██║╚██╗██║    ██║╚██╔╝██║██╔══██║██║╚██╗██║██╔══██║██║   ██║██╔══╝  ██╔══██╗      
+    ███████║██████╔╝██║ ╚████║    ██║ ╚═╝ ██║██║  ██║██║ ╚████║██║  ██║╚██████╔╝███████╗██║  ██║      
+    ╚══════╝╚═════╝ ╚═╝  ╚═══╝    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝      
+                                                                                                      
+    
+    """)
+    try:
+        start_manager(SdnManager(CONFIG_FILE_PATH))
+    except:
+        logger.error("exception while shutting down...")
+        exit(0)
 
 
 if __name__ == '__main__':
