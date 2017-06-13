@@ -212,7 +212,6 @@ class SdnManager(AbstractManager):
 
 def start():
     print("""
-
                             ███████╗ ██████╗ ███████╗████████╗███████╗██╗██████╗ ███████╗
                             ██╔════╝██╔═══██╗██╔════╝╚══██╔══╝██╔════╝██║██╔══██╗██╔════╝
                             ███████╗██║   ██║█████╗     ██║   █████╗  ██║██████╔╝█████╗
@@ -235,11 +234,7 @@ def start():
         ╚══════╝╚═════╝ ╚═╝  ╚═══╝    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
 
 """)
-    try:
-        start_manager(SdnManager(CONFIG_FILE_PATH))
-    except:
-        logger.error("exception while shutting down...")
-        exit(0)
+    start_manager(SdnManager(CONFIG_FILE_PATH))
 
 
 if __name__ == '__main__':
