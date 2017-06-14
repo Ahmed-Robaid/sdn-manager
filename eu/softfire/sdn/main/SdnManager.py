@@ -29,6 +29,8 @@ class SdnManager(AbstractManager):
     def __init__(self, config_file_path):
         super().__init__(config_file_path)
         self._resourcedata = dict()
+        logger.info("calling list_resources to load resource details...")
+        self.list_resources()
 
     def prepare_tenant(self, tenant_id, testbed):
         logger.debug("checking if tenant %s is already prepared on testbed %s" % (tenant_id, testbed))
@@ -135,7 +137,7 @@ class SdnManager(AbstractManager):
         if resource_id not in [v.get('resource_id') for k, v in self._resourcedata.items()]:
             raise KeyError("Unknown resource_id")
 
-    def provide_resources(self, user_info, payload=None) -> list:
+    def provide_resources(self, user_info: UserInfo, payload=None) -> list:
         """
         Call /SetupProxy API on sdn-proxy
         :param user_info:
@@ -145,19 +147,20 @@ class SdnManager(AbstractManager):
         result = list()
         res_dict = json.loads(payload)
         logger.debug("provide_resources dict %s" % res_dict)
+        logger.debug("provide_resources user_info %s %s" % (type(user_info), user_info))
         resource_id = res_dict.get("properties").get("resource_id")
         logger.debug("provide_resources: res_dict: %s" % res_dict)
-        username = user_info.name
-        logger.info("provide_resources username:%s resource:%s " % (username, res_dict))
+        logger.info("provide_resources username:%s resource:%s " % (user_info.name, res_dict))
         resource_data = None
         testbed = None
         for k, v in self._resourcedata.items():
+            logger.debug("provide_resources: _resourcedata: %s: %s" % (k, v))
             if v.get('resource_id') == resource_id:
                 resource_data = v
                 testbed = k
 
         if testbed is None or resource_id is None:
-            raise KeyError("Invalid resources!")
+            raise Exception("Invalid resources!")
 
         user_name = user_info.name
         token_string = "%s%s%s" % (resource_id, datetime.utcnow(), user_name)
@@ -191,14 +194,14 @@ class SdnManager(AbstractManager):
         return result
 
     def create_user(self, user_info: UserInfo) -> UserInfo:
-        logger.debug("create_user: UserInfo: %s" % user_info)
-        logger.debug(user_info.testbed_tenants)
+        logger.debug("create_user UserInfo: %s" % user_info)
+        logger.debug("create_user testbed_tenants: %s" % user_info.testbed_tenants)
         for testbed_id, tenent_id in user_info.testbed_tenants.items():
             if tenent_id and testbed_id in testbed2str.keys():
                 if testbed_id == messages_pb2.FOKUS:
                     self.prepare_tenant(tenent_id, testbed2str.get(testbed_id))
             else:
-                logger.error("Tenant_id missing for testbed %s!" % testbed2str.get(testbed_id))
+                logger.error("create_user: Tenant_id missing for testbed %s!" % testbed2str.get(testbed_id))
         return user_info
 
     def refresh_resources(self, user_info) -> list:
