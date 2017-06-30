@@ -112,9 +112,9 @@ class SdnManager(AbstractManager):
             if testbed is None or res_id is None:
                 logger.warn("Resource not found! probaly never deployed, i will return")
                 return
-            targeturl = urllib.parse.urljoin(resource_data.get("url"), "SDNproxySetup/%s" % token)
+            targeturl = urllib.parse.urljoin(resource_data.get("url"), "SDNproxy/%s" % token)
             logger.info("Deleting sdn-proxy: %s" % targeturl)
-            r = requests.delete(targeturl)
+            r = requests.delete(targeturl, headers={"Auth-Secret": resource_data.get("secret")})
             logger.debug("Result: %s" % r)
 
     def list_resources(self, user_info=None, payload=None) -> list:
@@ -250,4 +250,3 @@ def start():
 if __name__ == '__main__':
     print("##### SoftFIRE - SDN-Manager #####")
     start()
-
