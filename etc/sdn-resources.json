@@ -3,7 +3,7 @@
     "description": "OpenSDNCore Controller JSON-RPC API endpoint for the Fraunhofer FOKUS Testbed. For further Information please refer to the <a href='http://docs.softfire.eu/opensdncore/'>documentation</a>.",
     "cardinality": -1,
     "node_type": "SDNResource",
-    "testbed": "fokus",
+    "testbed": "fokus-dev",
     "private": {
       "url": "http://172.20.30.5:8001/",
       "secret": "90d82936f887a871df8cc82c1518a43e"
@@ -33,7 +33,7 @@
     "description": "OpenDayLight Controller API endpoint for the University of Surrey Testbed.",
     "cardinality": -1,
     "node_type": "SDNResource",
-    "testbed": "invalid",
+    "testbed": "surrey",
     "private": {
       "url": "http://172.20.17.1:8001/",
       "secret": "xxxx"
