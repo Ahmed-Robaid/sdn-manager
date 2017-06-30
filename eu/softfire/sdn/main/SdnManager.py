@@ -197,6 +197,10 @@ class SdnManager(AbstractManager):
         logger.debug("Target SDN-Proxy URL: %s" % targeturl)
         r = requests.post(targeturl, json=data, headers={"Auth-Secret": resource_data.get("secret")})
         logger.debug("Result: %s" % r)
+
+        if r.status_code == 500:
+            raise Exception("SDNproxySetup failed. Message: %s" % r.content)
+
         if r.headers.get('Content-Type') and r.headers['Content-Type'] == "application/json":
             try:
                 resj = r.json()
