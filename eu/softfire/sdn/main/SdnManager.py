@@ -12,6 +12,7 @@ from sdk.softfire.main import start_manager
 from sdk.softfire.manager import AbstractManager
 from sdk.softfire.utils import TESTBED_MAPPING
 
+from eu.softfire.sdn.utils.exceptions import SdnManagerException
 from eu.softfire.sdn.utils.static_config import CONFIG_FILE_PATH
 from eu.softfire.sdn.utils.utils import get_logger, get_available_resources
 
@@ -53,7 +54,7 @@ class SdnManager(AbstractManager):
                     return resj.get("flow-table-offset")
                 except ValueError as e:
                     logger.error("Error reading response json: %s" % e)
-                    raise Exception("error during PrepareTenant")
+                    raise SdnManagerException("error during PrepareTenant")
             pass
         elif testbed is messages_pb2.FOKUS:  # normal openstack
 
@@ -80,7 +81,7 @@ class SdnManager(AbstractManager):
     #             return resj.get("user-flow-tables")
     #         except ValueError as e:
     #             logger.error("Error reading response json: %s" % e)
-    #             raise Exception("Can't setup SDN-Proxy")
+    #             raise SdnManagerException("Can't setup SDN-Proxy")
 
     def release_resources(self, user_info, payload=None) -> None:
         """
@@ -184,7 +185,7 @@ class SdnManager(AbstractManager):
                 break
 
         if testbed is None or resource_id is None:
-            raise Exception("Invalid resources!")
+            raise SdnManagerException("Invalid resources!")
 
         user_name = user_info.name
         token_string = "%s%s%s" % (resource_id, datetime.utcnow(), user_name)
@@ -199,7 +200,7 @@ class SdnManager(AbstractManager):
         logger.debug("Result: %s" % r)
 
         if r.status_code == 500:
-            raise Exception("SDNproxySetup failed. Message: %s" % r.content)
+            raise SdnManagerException("SDNproxySetup failed. Message: %s" % r.content)
 
         if r.headers.get('Content-Type') and r.headers['Content-Type'] == "application/json":
             try:
@@ -209,7 +210,7 @@ class SdnManager(AbstractManager):
                 api_url = resj.get("endpoint_url")
             except ValueError as e:
                 logger.error("Error reading response json: %s" % e)
-                raise Exception("Can't setup SDN-Proxy")
+                raise SdnManagerException("Can't setup SDN-Proxy")
 
             result.append(json.dumps(
                 {
