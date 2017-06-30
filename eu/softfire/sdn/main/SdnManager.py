@@ -2,6 +2,7 @@ import hashlib
 import json
 import urllib
 from datetime import datetime
+from urllib import parse
 
 import requests
 import yaml
@@ -18,6 +19,7 @@ logger = get_logger(__name__)
 
 testbed2str = {
     messages_pb2.FOKUS: "fokus",
+    messages_pb2.FOKUS_DEV: "fokus-dev",
     messages_pb2.ERICSSON: "ericsson",
     messages_pb2.SURREY: "surrey",
     messages_pb2.ADS: "ads",
@@ -28,37 +30,57 @@ testbed2str = {
 class SdnManager(AbstractManager):
     def __init__(self, config_file_path):
         super().__init__(config_file_path)
-        self._resourcedata = dict()
+        self._resource_data = dict()
         logger.info("calling list_resources to load resource details...")
         self.list_resources()
 
-    def prepare_tenant(self, tenant_id, testbed):
-        logger.debug("checking if tenant %s is already prepared on testbed %s" % (tenant_id, testbed))
+    def prepare_tenant(self, tenant_id, testbed_str):
+        testbed = TESTBED_MAPPING.get(testbed_str)
+        logger.debug(
+            "prepare_tenant: checking if tenant %s is already prepared on testbed %s" % (tenant_id, testbed_str))
         # TODO: send tenand_id to proxy
-        if testbed is messages_pb2.FOKUS:
+        if testbed is messages_pb2.FOKUS_DEV:  ## opensdncore openstack
+            res = [x for x in self._resource_data.values() if x.get("testbed") == testbed_str][0]
+
+            url = urllib.parse.urljoin(res.get("url"), "PrepareTenant")
+            data = dict(tenant_id=tenant_id)
             logger.info("calling /PrepareTenant on SDN-Proxy-FOKUS...")
-            # requests.post()
+            r = requests.post(url, json=data, headers={"Auth-Secret": res["secret"]})
+            if r.headers.get('Content-Type', "") == "application/json" and r.status_code == 200:
+                try:
+                    resj = r.json()
+                    logger.debug("Result from SDN-Proxy: %s" % resj)
+                    return resj.get("flow-table-offset")
+                except ValueError as e:
+                    logger.error("Error reading response json: %s" % e)
+                    raise Exception("error during PrepareTenant")
             pass
-        elif testbed is messages_pb2.FOKUS_DEV:
+        elif testbed is messages_pb2.FOKUS:  # normal openstack
+
+            logger.info("no SDN support on %s" % testbed)
             pass
         elif testbed is messages_pb2.ERICSSON:
+            logger.info("no SDN support on %s" % testbed)
             pass
         elif testbed is messages_pb2.ERICSSON_DEV:
+            logger.info("no SDN support on %s" % testbed)
             pass
+        else:
+            logger.error("testbed %s unknown!" % testbed)
 
-    def setup_sdn_proxy(self, token, tenant, resource_id):
-        res = self._resourcedata[resource_id]
-        url = res["url"]
-        data = dict(experiment_id=token, tenant_id=tenant)
-        r = requests.post(url, json=data, headers=["Auth-Secret: " + res["secret"]])
-        if r.headers.get('Content-Type') and r.headers['Content-Type'] == "application/json":
-            try:
-                resj = r.json()
-                logger.debug("Result from SDN-Proxy: %s" % resj)
-                return resj.get("user-flow-tables")
-            except ValueError as e:
-                logger.error("Error reading response json: %s" % e)
-                raise Exception("Can't setup SDN-Proxy")
+    # def setup_sdn_proxy(self, token, tenant, resource_id):
+    #     res = self._resource_data[resource_id]
+    #     url = urllib.parse.urljoin(res.get("url"), "SDNproxySetup")
+    #     data = dict(experiment_id=token, tenant_id=tenant)
+    #     r = requests.post(url, json=data, headers=["Auth-Secret: " + res["secret"]])
+    #     if r.headers.get('Content-Type') and r.headers['Content-Type'] == "application/json":
+    #         try:
+    #             resj = r.json()
+    #             logger.debug("Result from SDN-Proxy: %s" % resj)
+    #             return resj.get("user-flow-tables")
+    #         except ValueError as e:
+    #             logger.error("Error reading response json: %s" % e)
+    #             raise Exception("Can't setup SDN-Proxy")
 
     def release_resources(self, user_info, payload=None) -> None:
         """
@@ -82,7 +104,7 @@ class SdnManager(AbstractManager):
             token = pj.get("token")
             resource_data = None
             testbed = None
-            for k, v in self._resourcedata.items():
+            for k, v in self._resource_data.items():
                 if v.get('resource_id') == res_id:
                     resource_data = v
                     testbed = k
@@ -99,7 +121,7 @@ class SdnManager(AbstractManager):
         logger.debug("UserInfo: %s" % user_info)
         result = []
 
-        self._resourcedata = dict()
+        self._resource_data = dict()
 
         for k, v in get_available_resources().items():
             testbed = v.get('testbed')
@@ -116,8 +138,8 @@ class SdnManager(AbstractManager):
                                                             node_type=node_type,
                                                             testbed=testbed_id))
                 private = v.get('private')
-                self._resourcedata[testbed] = dict(url=private.get('url'), secret=private.get('secret'),
-                                                   resource_id=resource_id, testbed=testbed)
+                self._resource_data[testbed] = dict(url=private.get('url'), secret=private.get('secret'),
+                                                    resource_id=resource_id, testbed=testbed)
 
         logger.info("returning %d resources" % len(result))
         return result
@@ -126,7 +148,7 @@ class SdnManager(AbstractManager):
         """
         Check syntax of requested resources
         :param user_info:
-        :param payload:
+        :param payload: yaml
         :return:
         """
         logger.debug("validate_resources payload: %s" % payload)
@@ -134,14 +156,14 @@ class SdnManager(AbstractManager):
         logger.debug("validate_resources dict: %s" % res_dict)
         resource_id = res_dict.get("properties").get("resource_id")
         logger.debug("Validate resource: %s" % resource_id)
-        if resource_id not in [v.get('resource_id') for k, v in self._resourcedata.items()]:
+        if resource_id not in [v.get('resource_id') for k, v in self._resource_data.items()]:
             raise KeyError("Unknown resource_id")
 
     def provide_resources(self, user_info: UserInfo, payload=None) -> list:
         """
         Call /SetupProxy API on sdn-proxy
         :param user_info:
-        :param payload:
+        :param payload: json
         :return:
         """
         result = list()
@@ -153,11 +175,13 @@ class SdnManager(AbstractManager):
         logger.info("provide_resources username:%s resource:%s " % (user_info.name, res_dict))
         resource_data = None
         testbed = None
-        for k, v in self._resourcedata.items():
-            logger.debug("provide_resources: _resourcedata: %s: %s" % (k, v))
+        for k, v in self._resource_data.items():
+            logger.debug("provide_resources: list _resourcedata: %s: %s" % (k, v))
             if v.get('resource_id') == resource_id:
+                logger.debug("found resource!(testbed=%s)" % k)
                 resource_data = v
                 testbed = k
+                break
 
         if testbed is None or resource_id is None:
             raise Exception("Invalid resources!")
@@ -166,6 +190,7 @@ class SdnManager(AbstractManager):
         token_string = "%s%s%s" % (resource_id, datetime.utcnow(), user_name)
         token = hashlib.md5(token_string.encode()).hexdigest()
         tenant_id = user_info.testbed_tenants[TESTBED_MAPPING.get(testbed)]
+        logger.debug("genrated_token: %s" % token)
         data = dict(experiment_id=token, tenant_id=tenant_id)
 
         targeturl = urllib.parse.urljoin(resource_data.get("url"), "SDNproxySetup")
@@ -198,7 +223,7 @@ class SdnManager(AbstractManager):
         logger.debug("create_user testbed_tenants: %s" % user_info.testbed_tenants)
         for testbed_id, tenent_id in user_info.testbed_tenants.items():
             if tenent_id and testbed_id in testbed2str.keys():
-                if testbed_id == messages_pb2.FOKUS:
+                if testbed_id == messages_pb2.FOKUS_DEV:
                     self.prepare_tenant(tenent_id, testbed2str.get(testbed_id))
             else:
                 logger.error("create_user: Tenant_id missing for testbed %s!" % testbed2str.get(testbed_id))
@@ -214,8 +239,36 @@ class SdnManager(AbstractManager):
 
 
 def start():
+    try:
+        print("""
+                            ███████╗ ██████╗ ███████╗████████╗███████╗██╗██████╗ ███████╗
+                            ██╔════╝██╔═══██╗██╔════╝╚══██╔══╝██╔════╝██║██╔══██╗██╔════╝
+                            ███████╗██║   ██║█████╗     ██║   █████╗  ██║██████╔╝█████╗
+                            ╚════██║██║   ██║██╔══╝     ██║   ██╔══╝  ██║██╔══██╗██╔══╝
+                            ███████║╚██████╔╝██║        ██║   ██║     ██║██║  ██║███████╗
+                            ╚══════╝ ╚═════╝ ╚═╝        ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝
+
+
+
+    █████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗█████╗
+    ╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝╚════╝
+
+
+
+        ███████╗██████╗ ███╗   ██╗    ███╗   ███╗ █████╗ ███╗   ██╗ █████╗  ██████╗ ███████╗██████╗
+        ██╔════╝██╔══██╗████╗  ██║    ████╗ ████║██╔══██╗████╗  ██║██╔══██╗██╔════╝ ██╔════╝██╔══██╗
+        ███████╗██║  ██║██╔██╗ ██║    ██╔████╔██║███████║██╔██╗ ██║███████║██║  ███╗█████╗  ██████╔╝
+        ╚════██║██║  ██║██║╚██╗██║    ██║╚██╔╝██║██╔══██║██║╚██╗██║██╔══██║██║   ██║██╔══╝  ██╔══██╗
+        ███████║██████╔╝██║ ╚████║    ██║ ╚═╝ ██║██║  ██║██║ ╚████║██║  ██║╚██████╔╝███████╗██║  ██║
+        ╚══════╝╚═════╝ ╚═╝  ╚═══╝    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
+
+""")
+    except:
+        print("##### SoftFIRE - SDN-Manager #####")
+        pass
     start_manager(SdnManager(CONFIG_FILE_PATH))
 
 
 if __name__ == '__main__':
     start()
+

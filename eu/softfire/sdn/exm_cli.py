@@ -13,7 +13,7 @@ class ExManagerCli(object):
         super().__init__()
         self._username = "invalid"
         self._password = "invalid"
-        self._testbed_tenants = {messages_pb2.FOKUS: "654invalid321"}
+        self._testbed_tenants = {messages_pb2.FOKUS_DEV: "654invalid321"}
 
         if target is None:
             target = '%s:%s' % (self.get_config_value("system", "ip", "localhost"),
@@ -78,9 +78,17 @@ class ExManagerCli(object):
             print("Result: Error msg: %s" % response.error_message)
 
     def send_validate_resources_as_em(self):
-        data = dict()
-
-        self.send_execute_as_em(messages_pb2.VALIDATE_RESOURCES, yaml.dump(data), self.get_user_info())
+        #data = dict(SdnResource=dict(properties=dict(resource_id="sdn-controller-opensdncore-fokus")), derived_from="eu.softfire.BaseResource")
+        data = {
+            "properties": {
+                "resource_id": "sdn-controller-opensdncore-fokus",
+            },
+            "type": "SdnResource"
+        }
+        yml = yaml.dump(data)
+        print("dict: %s" % data)
+        print("yaml: %s" % yml)
+        self.send_execute_as_em(messages_pb2.VALIDATE_RESOURCES, yml, self.get_user_info())
 
     def send_provide_resources_as_em(self):
         data = {
@@ -142,9 +150,12 @@ if __name__ == '__main__':
     ex = ExManagerCli()
     # ex.send_create_user_as_em()
     options = main()
-    for method in options.methods:
-        print("Invoking method: %s" % method)
-        try:
-            callmethod(ex, method)
-        except Exception as e:
-            print("Error: %s" % e)
+    if isinstance(options.methods,list):
+        for method in options.methods:
+            print("Invoking method: %s" % method)
+            try:
+                callmethod(ex, method)
+            except Exception as e:
+                print("Error: %s" % e)
+    else:
+        print("useage --help")
