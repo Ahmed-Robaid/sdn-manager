@@ -15,7 +15,7 @@ def read(fname):
 
 setup(
     name="sdn-manager",
-    version="1.0.0",
+    version="1.0.1",
     author="SoftFIRE",
     author_email="softfire@softfire.eu",
     description="The SoftFIRE SDN Manager",
