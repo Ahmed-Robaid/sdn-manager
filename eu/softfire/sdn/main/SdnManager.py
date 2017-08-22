@@ -35,6 +35,37 @@ class SdnManager(AbstractManager):
         logger.info("calling list_resources to load resource details...")
         self.list_resources()
 
+    def remove_tenant(self, tenant_id, testbed_str):
+        ##remove tenant from proxy
+        testbed = TESTBED_MAPPING.get(testbed_str)
+        logger.debug(
+            "remove_tenant: checking if tenant %s is already prepared on testbed %s" % (tenant_id, testbed_str))
+        # TODO: send tenand_id to proxy
+        if testbed is messages_pb2.FOKUS_DEV:  ## opensdncore openstack
+            res = [x for x in self._resource_data.values() if x.get("testbed") == testbed_str][0]
+
+            url = urllib.parse.urljoin(res.get("url"), "RemoveTenant/%s" % tenant_id)
+            #data = dict(tenant_id=tenant_id)
+            logger.info("calling /RemoveTenant on SDN-Proxy-FOKUS...")
+            r = requests.delete(url, headers={"Auth-Secret": res["secret"]})
+            if r.status_code == 200:
+                logger.info("Tenant Deletion successful %s" % r)
+            else:
+                logger.error("Problem in Tenant Deletion")
+
+        elif testbed is messages_pb2.FOKUS:  # normal openstack
+
+            logger.info("no SDN support on %s" % testbed)
+            pass
+        elif testbed is messages_pb2.ERICSSON:
+            logger.info("no SDN support on %s" % testbed)
+            pass
+        elif testbed is messages_pb2.ERICSSON_DEV:
+            logger.info("no SDN support on %s" % testbed)
+            pass
+        else:
+            logger.error("testbed %s unknown!" % testbed)
+
     def prepare_tenant(self, tenant_id, testbed_str):
         testbed = TESTBED_MAPPING.get(testbed_str)
         logger.debug(
@@ -222,6 +253,18 @@ class SdnManager(AbstractManager):
             ))
 
         return result
+
+    def delete_user(self, user_info: UserInfo):
+        logger.debug("delete_user UserInfo: %s" % user_info)
+        logger.debug("delete_user testbed_tenants: %s" % user_info.testbed_tenants)
+        # call remove_tenant
+        for testbed_id, tenent_id in user_info.testbed_tenants.items():
+            if tenent_id and testbed_id in testbed2str.keys():
+                if testbed_id == messages_pb2.FOKUS_DEV:
+                    self.remove_tenant(tenent_id, testbed2str.get(testbed_id))
+            else:
+                logger.error("delete_user: Tenant_id missing for testbed %s!" % testbed2str.get(testbed_id))
+        return user_info
 
     def create_user(self, user_info: UserInfo) -> UserInfo:
         logger.debug("create_user UserInfo: %s" % user_info)
