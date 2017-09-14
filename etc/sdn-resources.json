@@ -6,7 +6,7 @@
     "testbed": "fokus-dev",
     "private": {
       "url": "http://172.20.30.5:8001/",
-      "secret": "90d82936f887a871df8cc82c1518a43e"
+      "secret": "90d8_changeme_a43e"
     }
   },
   "sdn-controller-odl-ericsson": {
