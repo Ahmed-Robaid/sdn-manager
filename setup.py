@@ -25,7 +25,7 @@ setup(
     packages=find_packages(),
     scripts=["sdn-manager"],
     install_requires=[
-        'softfire-sdk',
+        'softfire-sdk==1.1.4',
         'PyYAML',
         'requests'
     ],
